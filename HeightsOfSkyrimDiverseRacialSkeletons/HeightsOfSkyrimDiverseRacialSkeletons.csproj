@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <WarningsAsErrors>CS8602;CS8604;CS8600;CS8601;CS8603;CS8610;CS8618;CS8619;CS8620;CS8625;CS8629;CS8714;</WarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mutagen.Bethesda.Skyrim" Version="0.41" />
+    <PackageReference Include="Mutagen.Bethesda.Synthesis" Version="0.25.4" />
+  </ItemGroup>
+</Project>
