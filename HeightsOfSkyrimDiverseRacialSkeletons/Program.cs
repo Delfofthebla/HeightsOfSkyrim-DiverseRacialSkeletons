@@ -55,13 +55,31 @@ public static class Program
         foreach (IRaceGetter fksRace in fksMod.Races)
         {
             IRaceGetter winningOverride = raceWinningOverrides.First(x => x.FormKey == fksRace.FormKey);
-            var maleHeightIsUnchanged = Math.Abs(winningOverride.Height.Male - fksRace.Height.Male) < 0.00001;
-            var femaleHeightIsUnchanged = Math.Abs(winningOverride.Height.Female - fksRace.Height.Female) < 0.00001;
-            if (maleHeightIsUnchanged && femaleHeightIsUnchanged)
-                continue;
-
             Race raceToPatch = state.PatchMod.Races.GetOrAddAsOverride(winningOverride);
             Race resolvedFksRace = fksRace.DeepCopy();
+            
+            var maleHeightIsUnchanged = Math.Abs(winningOverride.Height.Male - fksRace.Height.Male) < 0.00001;
+            var femaleHeightIsUnchanged = Math.Abs(winningOverride.Height.Female - fksRace.Height.Female) < 0.00001;
+            var raceToPatchMaleSkeleton = raceToPatch.SkeletalModel?.Male;
+            var raceToPatchFemaleSkeleton = raceToPatch.SkeletalModel?.Female;
+            var fksMaleSkeleton = resolvedFksRace.SkeletalModel?.Male;
+            var fksFemaleSkeleton = resolvedFksRace.SkeletalModel?.Female;
+
+            var maleSkeletonIsUnchanged = string.Equals(
+                fksMaleSkeleton?.File.RawPath?.Trim(),
+                raceToPatchMaleSkeleton?.File.RawPath.Trim(),
+                StringComparison.InvariantCultureIgnoreCase
+            );
+            var femaleSkeletonIsUnchanged = string.Equals(
+                fksFemaleSkeleton?.File.RawPath.Trim(),
+                raceToPatchFemaleSkeleton?.File.RawPath.Trim(),
+                StringComparison.InvariantCultureIgnoreCase
+            );
+            if (maleHeightIsUnchanged && femaleHeightIsUnchanged && maleSkeletonIsUnchanged && femaleSkeletonIsUnchanged)
+            {
+                Console.WriteLine("All values for race '" + resolvedFksRace.Name + "' are correct. Skipping.");
+                continue;
+            }
             
             raceToPatch.Height.Male = fksRace.Height.Male;
             raceToPatch.Height.Female = fksRace.Height.Female;
@@ -112,10 +130,9 @@ public static class Program
 
     private static void HandleNpcWithModifiedRace(INpcGetter heightsNpc, INpc npcToPatch)
     {
-        var heightDiff = 1.0f - heightsNpc.Height; // Technically kinda hacky.
-
         // If someone is being cheeky and setting non 1.0 heights on an NPC this won't be super accurate.
-        // I should figure out how to get the base record but that sounds like a pain in the ass.
+        // If I was more familiar with the API I'd read it from the master plugin where it was originally defined.
+        var heightDiff = 1.0f - heightsNpc.Height;
         var multipliedHeight = npcToPatch.Height - (float) (heightDiff * Settings.HeightChangeMultiplier);
 
         Console.WriteLine(
