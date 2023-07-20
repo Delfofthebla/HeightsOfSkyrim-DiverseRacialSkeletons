@@ -28,11 +28,6 @@ public static class Program
 
     private static void RunPatch(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
     {
-        // ModKey skyrimKey = ModKey.FromNameAndExtension("Skyrim.esm");
-        // state.LoadOrder.TryGetIfEnabledAndExists(skyrimKey, out var baseGame);
-        // if (baseGame is null)
-        //     throw new Exception("Your Skyrim.esm is not activated, present, or located above Synthesis.esp in LO");
-        
         ModKey heightsModKey = ModKey.FromNameAndExtension("Heights_of_Skyrim.esp");
         state.LoadOrder.TryGetIfEnabledAndExists(heightsModKey, out var heightsMod);
         if (heightsMod is null)
@@ -47,7 +42,9 @@ public static class Program
         AdjustNpcHeightsInLineWithRacialChanges(state, heightsMod, modifiedRaceHeights);
     }
 
-    private static Dictionary<(FormKey, bool), float> ReApplyRacialHeightChanges(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, ISkyrimModGetter fksMod)
+    private static Dictionary<(FormKey, bool), float> ReApplyRacialHeightChanges(
+        IPatcherState<ISkyrimMod, ISkyrimModGetter> state,
+        ISkyrimModGetter fksMod)
     {
         var fksRaceKeys = fksMod.Races.Select(x => x.FormKey).ToList();
         var raceWinningOverrides = state.LoadOrder.PriorityOrder.WinningOverrides<IRaceGetter>()
@@ -64,8 +61,18 @@ public static class Program
                 continue;
 
             Race raceToPatch = state.PatchMod.Races.GetOrAddAsOverride(winningOverride);
+            Race resolvedFksRace = fksRace.DeepCopy();
+            
             raceToPatch.Height.Male = fksRace.Height.Male;
             raceToPatch.Height.Female = fksRace.Height.Female;
+            Console.WriteLine("Updated Male height for race: " + resolvedFksRace.Name);
+            Console.WriteLine("\tMale Height: " + raceToPatch.Height.Male);
+            Console.WriteLine("\tFemale Height: " + raceToPatch.Height.Female);
+
+            raceToPatch.SkeletalModel = resolvedFksRace.SkeletalModel;
+            Console.WriteLine("Updated Racial Skeleton path for race: " + raceToPatch.Name);
+            Console.WriteLine("\tMale Path: " + resolvedFksRace?.SkeletalModel?.Male?.File.RawPath);
+            Console.WriteLine("\tFemale Path: " + resolvedFksRace?.SkeletalModel?.Female?.File.RawPath);
 
             // I may need to change this to actually read from Skyrim.esm instead of just the latest override,
             // since it's possible for the user to not have a mod that touches races.
@@ -111,12 +118,11 @@ public static class Program
         // I should figure out how to get the base record but that sounds like a pain in the ass.
         var multipliedHeight = npcToPatch.Height - (float) (heightDiff * Settings.HeightChangeMultiplier);
 
-        Console.WriteLine("Npc with name: " +
-            npcToPatch.Name +
-            " had a height of " +
-            npcToPatch.Height +
-            ", changing it to " +
-            multipliedHeight);
+        Console.WriteLine(
+            "Npc with name: " + npcToPatch.Name +
+            " had a height of " + npcToPatch.Height +
+            ", changing it to " + multipliedHeight
+        );
         
         npcToPatch.Height = multipliedHeight;
     }
@@ -125,22 +131,20 @@ public static class Program
     {
         if (Math.Abs(npcToPatch.Height - heightsNpc.Height) < 0.00001)
         {
-            Console.WriteLine("Npc with name: " +
-                npcToPatch.Name +
-                ", " +
+            Console.WriteLine(
+                "Npc with name: " + npcToPatch.Name + ", " +
                 "contains a race that was not touched by FK's. " +
-                "It's height is also already correct. Skipping NPC.");
+                "It's height is also already correct. Skipping NPC."
+            );
         }
         else
         {
             npcToPatch.Height = heightsNpc.Height;
-            Console.WriteLine("Npc with name: " +
-                npcToPatch.Name +
-                ", " +
+            Console.WriteLine(
+                "Npc with name: " + npcToPatch.Name + ", " +
                 "contains a race that was not touched by FK's. " +
-                "(" +
-                npcToPatch.Race +
-                "). Height from Heights of Skyrim will be applied directly.");
+                "Height from Heights of Skyrim will be applied directly."
+            );
         }
     }
 }
