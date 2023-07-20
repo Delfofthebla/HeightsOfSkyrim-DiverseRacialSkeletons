@@ -65,20 +65,22 @@ public static class Program
         IDictionary<(FormKey, bool), float> modifiedRaceHeights)
     {
         IRaceGetter winningOverride = raceWinningOverrides.First(x => x.FormKey == fksRace.FormKey);
-        Race raceToPatch = state.PatchMod.Races.GetOrAddAsOverride(winningOverride);
         Race resolvedFksRace = fksRace.DeepCopy(); // There's goooootta be a better way to do this, but I am too unfamiliar with the API to know for sure.
 
         var maleHeightIsUnchanged = Math.Abs(winningOverride.Height.Male - fksRace.Height.Male) < 0.00001;
         var femaleHeightIsUnchanged = Math.Abs(winningOverride.Height.Female - fksRace.Height.Female) < 0.00001;
-        var raceToPatchMaleSkeleton = raceToPatch.SkeletalModel?.Male;
-        var raceToPatchFemaleSkeleton = raceToPatch.SkeletalModel?.Female;
+        
+        var raceToPatchMaleSkeleton = winningOverride.SkeletalModel?.Male;
+        var raceToPatchFemaleSkeleton = winningOverride.SkeletalModel?.Female;
         var fksMaleSkeleton = resolvedFksRace.SkeletalModel?.Male;
         var fksFemaleSkeleton = resolvedFksRace.SkeletalModel?.Female;
 
-        var maleSkeletonIsUnchanged = string.Equals(fksMaleSkeleton?.File.RawPath?.Trim(),
+        var maleSkeletonIsUnchanged = string.Equals(
+            fksMaleSkeleton?.File.RawPath?.Trim(),
             raceToPatchMaleSkeleton?.File.RawPath.Trim(),
             StringComparison.InvariantCultureIgnoreCase);
-        var femaleSkeletonIsUnchanged = string.Equals(fksFemaleSkeleton?.File.RawPath.Trim(),
+        var femaleSkeletonIsUnchanged = string.Equals(
+            fksFemaleSkeleton?.File.RawPath.Trim(),
             raceToPatchFemaleSkeleton?.File.RawPath.Trim(),
             StringComparison.InvariantCultureIgnoreCase);
         
@@ -88,6 +90,7 @@ public static class Program
             return;
         }
 
+        Race raceToPatch = state.PatchMod.Races.GetOrAddAsOverride(winningOverride);
         if (!maleHeightIsUnchanged || !femaleHeightIsUnchanged)
             Console.WriteLine("Updated at least one gendered height for race: " + resolvedFksRace.Name);
 
@@ -127,15 +130,13 @@ public static class Program
         foreach (INpcGetter heightsNpc in heightsMod.Npcs)
         {
             INpcGetter winningOverride = npcWinningOverrides.First(x => x.FormKey == heightsNpc.FormKey);
-
-            INpc npcToPatch = state.PatchMod.Npcs.GetOrAddAsOverride(winningOverride);
-            (FormKey FormKey, bool) raceKey = (npcToPatch.Race.FormKey, (npcToPatch.Configuration.Flags & NpcConfiguration.Flag.Female) != 0);
-
+            (FormKey FormKey, bool) raceKey = (winningOverride.Race.FormKey, (winningOverride.Configuration.Flags & NpcConfiguration.Flag.Female) != 0);
+            
             var raceWasModified = modifiedRaceHeights.ContainsKey(raceKey);
             if (!raceWasModified)
-                HandleNpcWithUnmodifiedRace(heightsNpc, npcToPatch);
+                HandleNpcWithUnmodifiedRace(state, heightsNpc, winningOverride);
             else
-                HandleNpcWithModifiedRace(heightsNpc, npcToPatch);
+                HandleNpcWithModifiedRace(heightsNpc, state.PatchMod.Npcs.GetOrAddAsOverride(winningOverride));
         }
     }
 
@@ -155,21 +156,25 @@ public static class Program
         npcToPatch.Height = multipliedHeight;
     }
     
-    private static void HandleNpcWithUnmodifiedRace(INpcGetter heightsNpc, INpc npcToPatch)
+    private static void HandleNpcWithUnmodifiedRace(
+        IPatcherState<ISkyrimMod, ISkyrimModGetter> state,
+        INpcGetter heightsNpc,
+        INpcGetter winningOverride)
     {
-        if (Math.Abs(npcToPatch.Height - heightsNpc.Height) < 0.00001)
+        if (Math.Abs(winningOverride.Height - heightsNpc.Height) < 0.00001)
         {
             Console.WriteLine(
-                "Npc with name: " + npcToPatch.Name + ", " +
+                "Npc with name: " + winningOverride.Name + ", " +
                 "contains a race that was not touched by FK's. " +
                 "It's height is also already correct. Skipping NPC."
             );
         }
         else
         {
+            INpc npcToPatch = state.PatchMod.Npcs.GetOrAddAsOverride(winningOverride);
             npcToPatch.Height = heightsNpc.Height;
             Console.WriteLine(
-                "Npc with name: " + npcToPatch.Name + ", " +
+                "Npc with name: " + winningOverride.Name + ", " +
                 "contains a race that was not touched by FK's. " +
                 "Height from Heights of Skyrim will be applied directly."
             );
