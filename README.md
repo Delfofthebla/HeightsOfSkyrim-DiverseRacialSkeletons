@@ -7,5 +7,5 @@ I like the NPC variance of Heights of Skyrim, but more-so than that, I enjoy the
 This patch gives you the ability to "reign in" Heights of Skyrim NPC height changes to be less pronounced when compared to vanilla.
 
 ### Known Issues
-* If the NPC has a base height other than 1.0, this patcher will produce incorrect results.
+* If the NPC has a base height other than 1.0 within Skyrim.esm, this patcher will produce incorrect results. I'm not immediately aware of any NPCs that meet this criteria, but I haven't looked very hard.
 * When run alongside facefixer synthesis patch (which everyone should use), ensure that this patcher is LOWER than that patch, otherwise it will overwrite your changes. You can open your synthesis patch in xEdit to make sure it's working correctly.
