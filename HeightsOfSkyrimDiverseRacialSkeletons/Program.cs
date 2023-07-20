@@ -46,61 +46,72 @@ public static class Program
         IPatcherState<ISkyrimMod, ISkyrimModGetter> state,
         ISkyrimModGetter fksMod)
     {
-        var fksRaceKeys = fksMod.Races.Select(x => x.FormKey).ToList();
-        var raceWinningOverrides = state.LoadOrder.PriorityOrder.WinningOverrides<IRaceGetter>()
+        List<FormKey> fksRaceKeys = fksMod.Races.Select(x => x.FormKey).ToList();
+        List<IRaceGetter> raceWinningOverrides = state.LoadOrder.PriorityOrder.WinningOverrides<IRaceGetter>()
             .Where(x => fksRaceKeys.Contains(x.FormKey))
             .ToList();
 
         var modifiedRaceHeights = new Dictionary<(FormKey, bool), float>();
         foreach (IRaceGetter fksRace in fksMod.Races)
-        {
-            IRaceGetter winningOverride = raceWinningOverrides.First(x => x.FormKey == fksRace.FormKey);
-            Race raceToPatch = state.PatchMod.Races.GetOrAddAsOverride(winningOverride);
-            Race resolvedFksRace = fksRace.DeepCopy();
-            
-            var maleHeightIsUnchanged = Math.Abs(winningOverride.Height.Male - fksRace.Height.Male) < 0.00001;
-            var femaleHeightIsUnchanged = Math.Abs(winningOverride.Height.Female - fksRace.Height.Female) < 0.00001;
-            var raceToPatchMaleSkeleton = raceToPatch.SkeletalModel?.Male;
-            var raceToPatchFemaleSkeleton = raceToPatch.SkeletalModel?.Female;
-            var fksMaleSkeleton = resolvedFksRace.SkeletalModel?.Male;
-            var fksFemaleSkeleton = resolvedFksRace.SkeletalModel?.Female;
-
-            var maleSkeletonIsUnchanged = string.Equals(
-                fksMaleSkeleton?.File.RawPath?.Trim(),
-                raceToPatchMaleSkeleton?.File.RawPath.Trim(),
-                StringComparison.InvariantCultureIgnoreCase
-            );
-            var femaleSkeletonIsUnchanged = string.Equals(
-                fksFemaleSkeleton?.File.RawPath.Trim(),
-                raceToPatchFemaleSkeleton?.File.RawPath.Trim(),
-                StringComparison.InvariantCultureIgnoreCase
-            );
-            if (maleHeightIsUnchanged && femaleHeightIsUnchanged && maleSkeletonIsUnchanged && femaleSkeletonIsUnchanged)
-            {
-                Console.WriteLine("All values for race '" + resolvedFksRace.Name + "' are correct. Skipping.");
-                continue;
-            }
-            
-            raceToPatch.Height.Male = fksRace.Height.Male;
-            raceToPatch.Height.Female = fksRace.Height.Female;
-            Console.WriteLine("Updated Male height for race: " + resolvedFksRace.Name);
-            Console.WriteLine("\tMale Height: " + raceToPatch.Height.Male);
-            Console.WriteLine("\tFemale Height: " + raceToPatch.Height.Female);
-
-            raceToPatch.SkeletalModel = resolvedFksRace.SkeletalModel;
-            Console.WriteLine("Updated Racial Skeleton path for race: " + raceToPatch.Name);
-            Console.WriteLine("\tMale Path: " + resolvedFksRace?.SkeletalModel?.Male?.File.RawPath);
-            Console.WriteLine("\tFemale Path: " + resolvedFksRace?.SkeletalModel?.Female?.File.RawPath);
-
-            // I may need to change this to actually read from Skyrim.esm instead of just the latest override,
-            // since it's possible for the user to not have a mod that touches races.
-            if (!maleHeightIsUnchanged)
-                modifiedRaceHeights[(raceToPatch.FormKey, false)] = fksRace.Height.Male;
-            if (!femaleHeightIsUnchanged)
-                modifiedRaceHeights[(raceToPatch.FormKey, true)] = fksRace.Height.Female;
-        }
+            UpdateRaceIfNecessary(state, raceWinningOverrides, fksRace, modifiedRaceHeights);
 
         return modifiedRaceHeights;
+    }
+
+    private static void UpdateRaceIfNecessary(
+        IPatcherState<ISkyrimMod, ISkyrimModGetter> state,
+        IEnumerable<IRaceGetter> raceWinningOverrides,
+        IRaceGetter fksRace,
+        IDictionary<(FormKey, bool), float> modifiedRaceHeights)
+    {
+        IRaceGetter winningOverride = raceWinningOverrides.First(x => x.FormKey == fksRace.FormKey);
+        Race raceToPatch = state.PatchMod.Races.GetOrAddAsOverride(winningOverride);
+        Race resolvedFksRace = fksRace.DeepCopy(); // There's goooootta be a better way to do this, but I am too unfamiliar with the API to know for sure.
+
+        var maleHeightIsUnchanged = Math.Abs(winningOverride.Height.Male - fksRace.Height.Male) < 0.00001;
+        var femaleHeightIsUnchanged = Math.Abs(winningOverride.Height.Female - fksRace.Height.Female) < 0.00001;
+        var raceToPatchMaleSkeleton = raceToPatch.SkeletalModel?.Male;
+        var raceToPatchFemaleSkeleton = raceToPatch.SkeletalModel?.Female;
+        var fksMaleSkeleton = resolvedFksRace.SkeletalModel?.Male;
+        var fksFemaleSkeleton = resolvedFksRace.SkeletalModel?.Female;
+
+        var maleSkeletonIsUnchanged = string.Equals(fksMaleSkeleton?.File.RawPath?.Trim(),
+            raceToPatchMaleSkeleton?.File.RawPath.Trim(),
+            StringComparison.InvariantCultureIgnoreCase);
+        var femaleSkeletonIsUnchanged = string.Equals(fksFemaleSkeleton?.File.RawPath.Trim(),
+            raceToPatchFemaleSkeleton?.File.RawPath.Trim(),
+            StringComparison.InvariantCultureIgnoreCase);
+        
+        if (maleHeightIsUnchanged && femaleHeightIsUnchanged && maleSkeletonIsUnchanged && femaleSkeletonIsUnchanged)
+        {
+            Console.WriteLine("All values for race '" + resolvedFksRace.Name + "' are correct. Skipping.");
+            return;
+        }
+
+        if (!maleHeightIsUnchanged || !femaleHeightIsUnchanged)
+            Console.WriteLine("Updated at least one gendered height for race: " + resolvedFksRace.Name);
+
+        if (!maleHeightIsUnchanged)
+        {
+            raceToPatch.Height.Male = fksRace.Height.Male;
+            modifiedRaceHeights[(raceToPatch.FormKey, false)] = fksRace.Height.Male;
+            Console.WriteLine("\tMale Height Updated: " + raceToPatch.Height.Male);
+        }
+
+        if (!femaleHeightIsUnchanged)
+        {
+            raceToPatch.Height.Female = fksRace.Height.Female;
+            modifiedRaceHeights[(raceToPatch.FormKey, true)] = fksRace.Height.Female;
+            Console.WriteLine("\tFemale Height Updated: " + raceToPatch.Height.Female);
+        }
+
+        if (!maleSkeletonIsUnchanged || !femaleHeightIsUnchanged)
+        {
+            raceToPatch.SkeletalModel = resolvedFksRace.SkeletalModel;
+            Console.WriteLine("Updated Racial Skeleton path for race: " + raceToPatch.Name);
+            Console.WriteLine("\tMale Path Updated: " + resolvedFksRace?.SkeletalModel?.Male?.File.RawPath);
+            Console.WriteLine("\tFemale Path Updated: " + resolvedFksRace?.SkeletalModel?.Female?.File.RawPath);
+        }
     }
 
     private static void AdjustNpcHeightsInLineWithRacialChanges(
@@ -108,8 +119,8 @@ public static class Program
         ISkyrimModGetter heightsMod,
         Dictionary<(FormKey, bool), float> modifiedRaceHeights)
     {
-        var heightsNpcKeys = heightsMod.Npcs.Select(x => x.FormKey).ToList();
-        var npcWinningOverrides = state.LoadOrder.PriorityOrder.WinningOverrides<INpcGetter>()
+        List<FormKey> heightsNpcKeys = heightsMod.Npcs.Select(x => x.FormKey).ToList();
+        List<INpcGetter> npcWinningOverrides = state.LoadOrder.PriorityOrder.WinningOverrides<INpcGetter>()
             .Where(x => heightsNpcKeys.Contains(x.FormKey))
             .ToList();
 
