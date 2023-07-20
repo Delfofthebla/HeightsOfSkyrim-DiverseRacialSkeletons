@@ -12,5 +12,5 @@ public class Settings
         "This will only be applied if FK's racial changes would have impacted the specific NPC's height.\r\n." + 
         "If the race height was not modified, this value will not be used for that NPC."
     )]
-    public double HeightChangeMultiplier { get; set; } = 0.6;
+    public double HeightChangeMultiplier { get; set; } = 0.5;
 }
